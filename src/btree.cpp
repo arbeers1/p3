@@ -32,9 +32,39 @@ BTreeIndex::BTreeIndex(const std::string & relationName,
 		const int attrByteOffset,
 		const Datatype attrType)
 {
+  //Construct index file name
   std::ostringstream idxStr;
   idxStr << relationName << '.' << attrByteOffset;
-  std::string indexName = idxStr.str(); //index name is the name of the index file.
+  std::string indexName = idxStr.str(); 
+
+  //Opens the file if it exists, otherwise a new index file is created
+  //scanned via FileScan, and record is inserted.
+  if(badgerdb::File::exists(indexName)){
+    *file = badgerdb::BlobFile::open(indexName);
+  }else{
+    *file = badgerdb::BlobFile::create(indexName);
+    FileScan scanner = badgerdb::FileScan(indexName, bufMgrIn);
+    while(true){
+      RecordId rid;  //Get the rid if it exists
+      try{
+        scanner.scanNext(rid);
+      }catch(EndOfFileException&){
+	break;
+      }
+
+      //read record for key and insert to tree
+      std::string recordStr =  scanner.getRecord();
+      const char *record = recordStr.c_str();
+      int key = *((int *)(record ));
+      void* keyPtr = &key;
+      insertEntry(keyPtr, rid);
+    }
+  }
+  //setup instance vars
+  bufMgr = bufMgrIn;
+  BTreeIndex::attrByteOffset = attrByteOffset;
+  
+  outIndexName = indexName;
 }
 
 
