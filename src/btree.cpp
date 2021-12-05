@@ -74,6 +74,16 @@ BTreeIndex::BTreeIndex(const std::string & relationName,
 
 BTreeIndex::~BTreeIndex()
 {
+  //Stops any scan if one is occuring
+  if(scanExecuting){
+    endScan();
+  }
+
+  //May need to check and unpin pages here 
+  
+  //Flushes and deconstructs file
+  bufMgr->flushFile(file);
+  delete file;
 }
 
 // -----------------------------------------------------------------------------
