@@ -15,6 +15,8 @@
 #include "exceptions/index_scan_completed_exception.h"
 #include "exceptions/file_not_found_exception.h"
 #include "exceptions/end_of_file_exception.h"
+#include "exceptions/page_pinned_exception.h"
+#include "exceptions/bad_buffer_exception.h"
 
 
 //#define DEBUG
@@ -36,13 +38,13 @@ BTreeIndex::BTreeIndex(const std::string & relationName,
   std::ostringstream idxStr;
   idxStr << relationName << '.' << attrByteOffset;
   std::string indexName = idxStr.str(); 
-
+ 
   //Opens the file if it exists, otherwise a new index file is created
   //scanned via FileScan, and record is inserted.
   if(badgerdb::File::exists(indexName)){
-    *file = badgerdb::BlobFile::open(indexName);
+    file = new BlobFile(indexName, false);
   }else{
-    *file = badgerdb::BlobFile::create(indexName);
+    file = new BlobFile(indexName, true);
     FileScan scanner = badgerdb::FileScan(indexName, bufMgrIn);
     while(true){
       RecordId rid;  //Get the rid if it exists
@@ -51,7 +53,6 @@ BTreeIndex::BTreeIndex(const std::string & relationName,
       }catch(EndOfFileException&){
 	break;
       }
-
       //read record for key and insert to tree
       std::string recordStr =  scanner.getRecord();
       const char *record = recordStr.c_str();
@@ -63,7 +64,21 @@ BTreeIndex::BTreeIndex(const std::string & relationName,
   //setup instance vars
   bufMgr = bufMgrIn;
   BTreeIndex::attrByteOffset = attrByteOffset;
-  
+  //Initialize indexMetaPage
+  Page *page; PageId pageNo;
+  try{
+    bufMgr->allocPage(file, pageNo, page);
+    headerPageNum = pageNo;
+    std::ostringstream metaStr;
+    metaStr << relationName << ',' << attrByteOffset << ',' << attrType << ',' << "NULL";
+    std::string meta = metaStr.str();
+    page->insertRecord(meta); 
+    bufMgr->unPinPage(file, pageNo, true);
+  }catch(PagePinnedException&){
+  }catch(BadBufferException&){}
+
+ 
+
   outIndexName = indexName;
 }
 
@@ -92,7 +107,7 @@ BTreeIndex::~BTreeIndex()
 
 void BTreeIndex::insertEntry(const void *key, const RecordId rid) 
 {
-
+  
 }
 
 // -----------------------------------------------------------------------------
