@@ -56,7 +56,7 @@ BTreeIndex::BTreeIndex(const std::string & relationName,
       //read record for key and insert to tree
       std::string recordStr =  scanner.getRecord();
       const char *record = recordStr.c_str();
-      int key = *((int *)(record ));
+      int key = *((int *)(record + attrByteOffset));
       void* keyPtr = &key;
       insertEntry(keyPtr, rid);
     }
@@ -64,13 +64,14 @@ BTreeIndex::BTreeIndex(const std::string & relationName,
   //setup instance vars
   bufMgr = bufMgrIn;
   BTreeIndex::attrByteOffset = attrByteOffset;
+  rootPageNum = 0;
   //Initialize indexMetaPage
-  Page *page; PageId pageNo;
+  PageId pageNo; Page *page;
   try{
     bufMgr->allocPage(file, pageNo, page);
     headerPageNum = pageNo;
     std::ostringstream metaStr;
-    metaStr << relationName << ',' << attrByteOffset << ',' << attrType << ',' << "NULL";
+    metaStr << relationName << ',' << attrByteOffset << ',' << attrType << ',' << 0;
     std::string meta = metaStr.str();
     page->insertRecord(meta); 
     bufMgr->unPinPage(file, pageNo, true);
@@ -107,7 +108,25 @@ BTreeIndex::~BTreeIndex()
 
 void BTreeIndex::insertEntry(const void *key, const RecordId rid) 
 {
-  
+  //Case if root has not been initialized
+  if(rootPageNum == 0){
+    //Create leaf page
+    PageId pageNum; Page *leafPage; 
+    bufMgr->allocPage(file, pageNum, leafPage);
+    LeafNodeInt *leaf = (struct LeafNodeInt*)leafPage;
+    leaf->keyArray[0] = *((int*)key);
+    leaf->ridArray[0] = rid;
+    bufMgr->unPinPage(file, pageNum, true);
+    //Create root
+    PageId rootNum; Page *rootPage;
+    bufMgr->allocPage(file, rootNum, rootPage);
+    NonLeafNodeInt *root = (struct NonLeafNodeInt*)rootPage;
+    root->level = 0;
+    root->keyArray[0] = *((int*)key);
+    root->pageNoArray[0] = pageNum;
+    rootPageNum = rootNum;
+    bufMgr->unPinPage(file, rootNum, true);
+  }
 }
 
 // -----------------------------------------------------------------------------
