@@ -161,7 +161,7 @@ void BTreeIndex::insertEntry(const void *key, const RecordId rid)
     }
     
     //Check if a page to recurse on was found, if not the last page is recursed on
-    currentPageNum = node->pageNoArray[INTARRAYNONLEAFSIZE];
+    if(currentPageNum == 0) currentPageNum = node->pageNoArray[INTARRAYNONLEAFSIZE];
 
     //If next level is a leaf then check it, otherwise recurse
     if(node->level == 1){
