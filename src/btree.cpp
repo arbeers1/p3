@@ -17,6 +17,7 @@
 #include "exceptions/end_of_file_exception.h"
 #include "exceptions/page_pinned_exception.h"
 #include "exceptions/bad_buffer_exception.h"
+#include <climits>
 
 
 //#define DEBUG
@@ -39,6 +40,12 @@ BTreeIndex::BTreeIndex(const std::string & relationName,
   idxStr << relationName << '.' << attrByteOffset;
   std::string indexName = idxStr.str(); 
  
+  //setup instance vars
+  bufMgr = bufMgrIn;
+  BTreeIndex::attrByteOffset = attrByteOffset;
+  rootPageNum = 0;
+  currentPageNum = 0;
+  
   //Opens the file if it exists, otherwise a new index file is created
   //scanned via FileScan, and record is inserted.
   if(badgerdb::File::exists(indexName)){
@@ -63,12 +70,6 @@ BTreeIndex::BTreeIndex(const std::string & relationName,
       }
     }
   }
- 
-  //setup instance vars
-  bufMgr = bufMgrIn;
-  BTreeIndex::attrByteOffset = attrByteOffset;
-  rootPageNum = 0;
-  currentPageNum = 0;
   
   //Initialize indexMetaPage
   PageId pageNo; Page *page;
@@ -112,36 +113,61 @@ void BTreeIndex::insertEntry(const void *key, const RecordId rid)
 {
   //Case if root has not been initialized
   if(rootPageNum == 0){
-    
     //Create leaf page
     PageId pageNum; Page *leafPage; 
     bufMgr->allocPage(file, pageNum, leafPage);
     LeafNodeInt *leaf = (struct LeafNodeInt*)leafPage;
+    
+    //Initialize leaf keys to max int for scanning purposes
+    for(int i = 0; i < INTARRAYLEAFSIZE; i++){
+      leaf->keyArray[i] =  INT_MAX;
+    }
     leaf->keyArray[0] = *((int*)key);
     leaf->ridArray[0] = rid;
     bufMgr->unPinPage(file, pageNum, true);
+    
     //Create root
     PageId rootNum; Page *rootPage;
     bufMgr->allocPage(file, rootNum, rootPage);
     NonLeafNodeInt *root = (struct NonLeafNodeInt*)rootPage;
+    
+    //Initialize non leaf keys to max int for scanning purposes
+    for(int i = 0; i < INTARRAYNONLEAFSIZE; i++){
+      root->keyArray[i] = INT_MAX;
+      root->pageNoArray[i] = INT_MAX;
+    }
+    root->pageNoArray[INTARRAYNONLEAFSIZE] = INT_MAX; //Fill in remaining slot
     root->level = 1;
     root->keyArray[0] = *((int*)key);
     root->pageNoArray[1] = pageNum; //insert leaf page to right of key
     rootPageNum = rootNum;
     bufMgr->unPinPage(file, rootNum, true);
-  }else{ //Case where a root exists, root is checked
+
+  }else{ //Case where a root exists, nodes are recursively checked
     if(currentPageNum == 0){
       currentPageNum = rootPageNum;
     }
     Page *page;
     bufMgr->readPage(file, currentPageNum, page);
     NonLeafNodeInt *node = (struct NonLeafNodeInt*)page;
+    
     //Scan the node for the proper page to recurse on.
+    currentPageNum = 0;
     for(int i = 0; i < INTARRAYNONLEAFSIZE; i++){
       //Return left page if key is less than current key
       if(*((int*)key) < node->keyArray[i]){
         currentPageNum = node->pageNoArray[i];
       }
+    }
+    
+    //Check if a page to recurse on was found, if not the last page is recursed on
+    currentPageNum = node->pageNoArray[INTARRAYNONLEAFSIZE];
+
+    //If next level is a leaf then check it, otherwise recurse
+    if(node->level == 1){
+      //TODO: SCAN leaf node, do stuff
+    }else{
+      insertEntry(key, rid);
     }
   }
 }
