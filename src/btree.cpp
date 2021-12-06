@@ -121,7 +121,7 @@ void BTreeIndex::insertEntry(const void *key, const RecordId rid)
     PageId rootNum; Page *rootPage;
     bufMgr->allocPage(file, rootNum, rootPage);
     NonLeafNodeInt *root = (struct NonLeafNodeInt*)rootPage;
-    root->level = 0;
+    root->level = 1;
     root->keyArray[0] = *((int*)key);
     root->pageNoArray[0] = pageNum;
     rootPageNum = rootNum;
