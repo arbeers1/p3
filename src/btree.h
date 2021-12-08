@@ -329,8 +329,26 @@ class BTreeIndex {
    * @param rid			Record ID of a record whose entry is getting inserted into the index.
 	**/
 	void insertEntry(const void* key, const RecordId rid);
+        
+	/**
+	 *A helper method for insertion
+	 *Recursively moves through the tree to find proper node to insert at
+	 *@param key Key to insert, pointer to integer/double/char string
+         *@param rid Record ID of a record whose entry is getting inserted into the index.
+	 *@returns true if the entry was successfully inserted, false if the leaf is full and a split needs to occur.
+	 */
+        bool insertHelper(const void *key, const RecordId rid);
 
-
+	/**
+	 *Helper method for insert Entry.
+	 *Finds the correct slot to enter a key,rid into a leaf
+	 *If no slot exists the leaf will be split
+	 *@param currentPageNum - the page number to scan
+	 *@param key - Key to insert
+	 *@param rid - rid to insert
+	 *@return - true if the entry was successfully inserted, false if the leaf is full and a split needs to occur.
+	 **/
+	bool insertToLeaf(const PageId currentPageNum, const void *key, const RecordId rid);
   /**
 	 * Begin a filtered scan of the index.  For instance, if the method is called 
 	 * using ("a",GT,"d",LTE) then we should seek all entries with a value 
