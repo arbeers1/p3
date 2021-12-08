@@ -74,6 +74,7 @@ void test2();
 void test3();
 void errorTests();
 void deleteRelation();
+void customTest1();
 
 int main(int argc, char **argv)
 {
@@ -138,7 +139,7 @@ int main(int argc, char **argv)
 	test2();
 	test3();
 	errorTests();
-
+        customTest1();
 	delete bufMgr;
 
   return 1;
@@ -177,6 +178,18 @@ void test3()
 	deleteRelation();
 }
 
+void customTest1()
+{
+  BTreeIndex index(relationName, intIndexName, bufMgr, offsetof(tuple,i), INTEGER);
+  RecordId rid1; RecordId rid2; RecordId rid3;
+  int key1 = 5;
+  int key2 = 1;
+  int key3 = 10;
+  index.insertEntry(&key1, rid1);
+  index.insertEntry(&key2, rid2);
+  index.insertEntry(&key3, rid3);
+  std::cout<<"Test finished without error"<<std::flush;
+}
 // -----------------------------------------------------------------------------
 // createRelationForward
 // -----------------------------------------------------------------------------

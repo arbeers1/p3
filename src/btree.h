@@ -349,6 +349,10 @@ class BTreeIndex {
 	 *@return - true if the entry was successfully inserted, false if the leaf is full and a split needs to occur.
 	 **/
 	bool insertToLeaf(const PageId currentPageNum, const void *key, const RecordId rid);
+
+	void splitLeaf(LeafNodeInt *child, PageId childNo, const void *key, const RecordId rid, int &propKey, PageId &propPageNo);
+
+        void splitNonLeaf(NonLeafNodeInt *child, const void *key, PageId pageNo, int &propKey, PageId &propPageNo);
   /**
 	 * Begin a filtered scan of the index.  For instance, if the method is called 
 	 * using ("a",GT,"d",LTE) then we should seek all entries with a value 

@@ -215,13 +215,78 @@ bool BTreeIndex::insertToLeaf(const PageId pageNum, const void *key, const Recor
 	leaf->ridArray[insertIndex] = rid;
 	currentPageNum = 0;
 	bufMgr->unPinPage(file, pageNum, true);
+	std::cout<<"HERE"<<std::flush;
 	return true;
       }
       //When insertion fails due to leaf being full false is returned
       //indicating split is needed.
+      //TODO:
+      //split
+      //unpin page
+      //
       return false;
 
 }
+
+void BTreeIndex::splitLeaf(LeafNodeInt *child, PageId childNo, const void *key, const RecordId rid, int &propKey, PageId &propPageNo){
+ 
+  //Splits node at child level into two
+   int mid = (int)(INTARRAYLEAFSIZE/2); //mid index
+   int propogateKey = child->keyArray[mid];
+
+   //Create new leaf
+   PageId sibPageNo; Page *sibPage;
+   bufMgr->allocPage(file, sibPageNo, sibPage);
+   LeafNodeInt *sibLeaf = (struct LeafNodeInt*)sibPage;
+
+   //Copy over data
+   for(int i = mid, j = 0; i < INTARRAYLEAFSIZE; i++,j++){
+     sibLeaf->keyArray[j] = child->keyArray[i];
+     sibLeaf->ridArray[j] = child->ridArray[i];
+     child->keyArray[i] = INT_MAX;
+   }
+   sibLeaf->rightSibPageNo = child->rightSibPageNo;
+   child->rightSibPageNo = sibPageNo;
+
+   //Insert the key and rid, now that the two pages have space
+   if(*((int*)key) < propogateKey){
+     insertToLeaf(childNo, key, rid);
+   }else{
+     insertToLeaf(sibPageNo, key, rid);
+   }  
+   bufMgr->unPinPage(file, sibPageNo, true);
+   propPageNo = sibPageNo;
+   propKey = propogateKey;
+}
+
+void BTreeIndex::splitNonLeaf(NonLeafNodeInt *child, const void *key, PageId pageNo, int &propKey, PageId &propPageNo){
+  int mid = (int)(INTARRAYNONLEAFSIZE/2);
+  int propogateKey = child->keyArray[mid];
+
+  //Create new node
+  PageId sibPageNo; Page *sibPage;
+  bufMgr->allocPage(file, sibPageNo, sibPage);
+  NonLeafNodeInt *sibNode = (struct NonLeafNodeInt*)sibPage;
+
+  //Copy data to new node
+  for(int i = mid, j = 0; i < INTARRAYNONLEAFSIZE; i++, j++){
+    sibNode->keyArray[j] = child->keyArray[i];
+    sibNode->pageNoArray[j] = child->pageNoArray[i];
+    sibNode->pageNoArray[j+1] = child->pageNoArray[i+1];
+  }
+  sibNode->level = child->level; 
+
+  if(*((int*)key) < propogateKey){
+   //insertToNonLeaf(childNo, key, rid);
+  }else{
+   //insertToNonLeaf(sibPageNo, key, rid);
+  }
+  bufMgr->unPinPage(file, sibPageNo, true);
+  propKey = propogateKey;
+  propPageNo = sibPageNo;
+}
+
+
 // -----------------------------------------------------------------------------
 // BTreeIndex::startScan
 // -----------------------------------------------------------------------------
