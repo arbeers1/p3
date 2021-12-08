@@ -337,7 +337,7 @@ class BTreeIndex {
          *@param rid Record ID of a record whose entry is getting inserted into the index.
 	 *@returns true if the entry was successfully inserted, false if the leaf is full and a split needs to occur.
 	 */
-        bool insertHelper(const void *key, const RecordId rid);
+        bool insertHelper(PageId currentNum, const void *key, const RecordId rid, int &propKey, PageId &propPageNo);
 
 	/**
 	 *Helper method for insert Entry.
@@ -352,8 +352,11 @@ class BTreeIndex {
 
 	void splitLeaf(LeafNodeInt *child, PageId childNo, const void *key, const RecordId rid, int &propKey, PageId &propPageNo);
 
-        void splitNonLeaf(NonLeafNodeInt *child, const void *key, PageId pageNo, int &propKey, PageId &propPageNo);
-  /**
+        void splitNonLeaf(NonLeafNodeInt *child, const void *key, PageId pageNo, int &propKey, PageId &propPageNo, bool root);
+  
+	void insertNonLeaf(NonLeafNodeInt *node, const void *key, PageId pageNo);
+
+	/**
 	 * Begin a filtered scan of the index.  For instance, if the method is called 
 	 * using ("a",GT,"d",LTE) then we should seek all entries with a value 
 	 * greater than "a" and less than or equal to "d".

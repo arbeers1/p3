@@ -152,37 +152,83 @@ void BTreeIndex::insertEntry(const void *key, const RecordId rid)
     bufMgr->unPinPage(file, rootNum, true);
 
   }else{ //Case where a root exists, nodes are recursively checked
-    insertHelper(key, rid);
+    int propKey; PageId propPageNo;
+    insertHelper(rootPageNum, key, rid, propKey, propPageNo);
   }
 }
 
-bool BTreeIndex::insertHelper(const void *key, const RecordId rid){
-  if(currentPageNum == 0){
-    currentPageNum = rootPageNum;
-  }
+bool BTreeIndex::insertHelper(PageId currentNum, const void *key, const RecordId rid, int &propKey, PageId &propPageNo){
   Page *page;
-  bufMgr->readPage(file, currentPageNum, page);
-  bufMgr->unPinPage(file, currentPageNum, false);
+  bufMgr->readPage(file, currentNum, page);
+  bufMgr->unPinPage(file, currentNum, false);
   NonLeafNodeInt *node = (struct NonLeafNodeInt*)page;
 
   //Scan the node for the proper page to recurse on.
-  currentPageNum = 0;
+  int childNum = 0;
   for(int i = 0; i < INTARRAYNONLEAFSIZE; i++){
     //Return left page if key is less than current key
     if(*((int*)key) < node->keyArray[i]){
-      currentPageNum = node->pageNoArray[i];
+      childNum = node->pageNoArray[i];
       break;
     }
   }
 
   //Check if a (left)page to recurse on was found, if not the last page is recursed on
-  if(currentPageNum == 0) currentPageNum = node->pageNoArray[INTARRAYNONLEAFSIZE];
+  if(childNum == 0) childNum = node->pageNoArray[INTARRAYNONLEAFSIZE];
 
   //If next level is a leaf then check it, otherwise recurse
   if(node->level == 1){
-    insertToLeaf(currentPageNum, key, rid);
-  }else{
-    insertHelper(key, rid);
+    if(insertToLeaf(childNum, key, rid)){
+      return true; //Case if leaf has space, insertion occurs, all is done
+    }
+    //Case if leaf needs to split
+    Page *child; 
+    bufMgr->readPage(file, childNum, child);
+    LeafNodeInt *childNode = (struct LeafNodeInt*)child;
+    splitLeaf(childNode, childNum, key, rid, propKey, propPageNo);
+    bufMgr->unPinPage(file, currentPageNum, true);
+    //propogate key upwards
+    bufMgr->readPage(file, currentNum, page);
+    if(node->keyArray[INTARRAYNONLEAFSIZE - 1] == INT_MAX){ //parent node has space add propogated key/page
+      insertNonLeaf(node, &propKey, propPageNo);
+      bufMgr->unPinPage(file, currentNum, true);
+      return true;
+    }else{//parent node is full, split node, return false so that previous call can split it
+      //TODO: check if parent node is root and split
+      if(currentNum == rootPageNum){
+        splitNonLeaf(node, &propKey, propPageNo, propKey, propPageNo, true);
+	bufMgr->unPinPage(file, currentNum, true);
+	return true;
+      }
+      return false;
+    }
+  }else{//recurse further down on first pass, split if needed on seconds pass
+    if(insertHelper(childNum, key, rid, propKey, propPageNo)){
+      return true;
+    }
+   
+    //case where split is needed
+    bufMgr->readPage(file, childNum, page);
+    NonLeafNodeInt *child = (struct NonLeafNodeInt*)page;
+    splitNonLeaf(child, &propKey, propPageNo,propKey, propPageNo, false);
+    bufMgr->unPinPage(file, childNum, true);
+    
+    //insert in parent if available 
+    //if root is parent, insert if empty otherwise split
+    bufMgr->readPage(file, currentNum, page);
+    NonLeafNodeInt *node = (struct NonLeafNodeInt*)page;
+    if(node->keyArray[INTARRAYNONLEAFSIZE-1] == INT_MAX){
+      insertNonLeaf(node, &propKey, propPageNo);
+      bufMgr->unPinPage(file, currentNum, true);
+    }else{
+      if(currentNum == rootPageNum){
+        splitNonLeaf(node, &propKey, propPageNo, propKey, propPageNo, true);
+        bufMgr->unPinPage(file, currentNum, true);
+        return true;
+      }
+      return false;
+    }
+    
   }
   return false;
 }
@@ -215,15 +261,9 @@ bool BTreeIndex::insertToLeaf(const PageId pageNum, const void *key, const Recor
 	leaf->ridArray[insertIndex] = rid;
 	currentPageNum = 0;
 	bufMgr->unPinPage(file, pageNum, true);
-	std::cout<<"HERE"<<std::flush;
 	return true;
       }
-      //When insertion fails due to leaf being full false is returned
-      //indicating split is needed.
-      //TODO:
-      //split
-      //unpin page
-      //
+      bufMgr->unPinPage(file, pageNum, false);
       return false;
 
 }
@@ -259,7 +299,7 @@ void BTreeIndex::splitLeaf(LeafNodeInt *child, PageId childNo, const void *key, 
    propKey = propogateKey;
 }
 
-void BTreeIndex::splitNonLeaf(NonLeafNodeInt *child, const void *key, PageId pageNo, int &propKey, PageId &propPageNo){
+void BTreeIndex::splitNonLeaf(NonLeafNodeInt *child, const void *key, PageId pageNo, int &propKey, PageId &propPageNo, bool root){
   int mid = (int)(INTARRAYNONLEAFSIZE/2);
   int propogateKey = child->keyArray[mid];
 
@@ -273,19 +313,57 @@ void BTreeIndex::splitNonLeaf(NonLeafNodeInt *child, const void *key, PageId pag
     sibNode->keyArray[j] = child->keyArray[i];
     sibNode->pageNoArray[j] = child->pageNoArray[i];
     sibNode->pageNoArray[j+1] = child->pageNoArray[i+1];
+    child->keyArray[i] = INT_MAX;
   }
   sibNode->level = child->level; 
 
   if(*((int*)key) < propogateKey){
-   //insertToNonLeaf(childNo, key, rid);
+   insertNonLeaf(child, key, pageNo);
+   
   }else{
-   //insertToNonLeaf(sibPageNo, key, rid);
+   insertNonLeaf(sibNode, key, pageNo);
   }
+
+  
   bufMgr->unPinPage(file, sibPageNo, true);
+  
+  //add a root page if the root is splitting.
+  if(root){
+    Page *rootP; PageId rootNo;
+    bufMgr->allocPage(file, rootNo, rootP);
+    NonLeafNodeInt *root = (struct NonLeafNodeInt*)rootP;
+
+    //add the prop key and pages
+    root->keyArray[0] = propogateKey;
+    root->pageNoArray[0] = rootPageNum;
+    root->pageNoArray[1] = sibPageNo;
+    rootPageNum = rootNo;
+    bufMgr->unPinPage(file, rootNo, true);
+  }
   propKey = propogateKey;
   propPageNo = sibPageNo;
 }
 
+void BTreeIndex::insertNonLeaf(NonLeafNodeInt *node, const void *key, PageId pageNo){
+  //Find free slot
+  int selectIndex;
+  for(int i = 0; i < INTARRAYNONLEAFSIZE; i++){
+    if(*((int*)key) < node->keyArray[i]){
+      selectIndex = i;
+      break;
+    }
+  }
+
+  //Shift data
+  for(int i = INTARRAYNONLEAFSIZE-1; i > selectIndex; i--){
+    node->keyArray[i] = node->keyArray[i-1];
+    node->pageNoArray[i+1] = node->pageNoArray[i];
+  }
+
+  //insert key, page
+  node->keyArray[selectIndex] = *((int*)key);
+  node->pageNoArray[selectIndex+1] = pageNo;
+}
 
 // -----------------------------------------------------------------------------
 // BTreeIndex::startScan
