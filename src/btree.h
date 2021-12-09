@@ -356,6 +356,8 @@ class BTreeIndex {
   
 	void insertNonLeaf(NonLeafNodeInt *node, const void *key, PageId pageNo);
 
+	bool verifyKey(int key);
+
 	/**
 	 * Begin a filtered scan of the index.  For instance, if the method is called 
 	 * using ("a",GT,"d",LTE) then we should seek all entries with a value 

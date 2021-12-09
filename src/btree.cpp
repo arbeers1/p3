@@ -45,6 +45,7 @@ BTreeIndex::BTreeIndex(const std::string & relationName,
   BTreeIndex::attrByteOffset = attrByteOffset;
   rootPageNum = 0;
   currentPageNum = 0;
+  nextEntry = -1;
   
   //Opens the file if it exists, otherwise a new index file is created
   //scanned via FileScan, and record is inserted.
@@ -421,10 +422,33 @@ void BTreeIndex::startScan(const void* lowValParm,
   currentPageNum = childPageNo;
   if(node->level == 1){
     bufMgr->readPage(file, currentPageNum, currentPageData);
-    scanExecuting = true;
-    return;
+    LeafNodeInt *leaf = (struct LeafNodeInt*)currentPageData;
+    //Verify leaf contains key
+    for(int i = 0; i < INTARRAYLEAFSIZE; i++){
+      if(verifyKey(leaf->keyArray[i])){
+        scanExecuting = true;
+	nextEntry = i;
+	break;
+      }
+    }
+    
+    //Btree does not contain any valid keys
+    endScan();
+    throw NoSuchKeyFoundException();
   }else{
     startScan(lowValParm, lowOp, highValParm, highOp);
+  }
+}
+
+bool BTreeIndex::verifyKey(int key){
+  if(lowOp == GT && highOp == LT){
+    return (key > lowValInt && key < highValInt);
+  }else if(lowOp == GT && highOp == LTE){
+    return (key > lowValInt && key <= highValInt);
+  }else if (lowOp == GTE && highOp == LT){
+    return (key >= lowValInt && highOp < highValInt);
+  }else{
+    return (key >= lowValInt && highOp <= highValInt);
   }
 }
 
