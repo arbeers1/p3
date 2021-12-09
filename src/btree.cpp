@@ -186,7 +186,7 @@ bool BTreeIndex::insertHelper(PageId currentNum, const void *key, const RecordId
     bufMgr->readPage(file, childNum, child);
     LeafNodeInt *childNode = (struct LeafNodeInt*)child;
     splitLeaf(childNode, childNum, key, rid, propKey, propPageNo);
-    bufMgr->unPinPage(file, currentPageNum, true);
+    bufMgr->unPinPage(file, childNum, true);
     //propogate key upwards
     bufMgr->readPage(file, currentNum, page);
     if(node->keyArray[INTARRAYNONLEAFSIZE - 1] == INT_MAX){ //parent node has space add propogated key/page
