@@ -433,7 +433,8 @@ void BTreeIndex::startScan(const void* lowValParm,
     }
     
     //Btree does not contain any valid keys
-    endScan();
+    bufMgr->unPinPage(file, currentPageNum, false);
+    currentPageNum = 0;
     throw NoSuchKeyFoundException();
   }else{
     startScan(lowValParm, lowOp, highValParm, highOp);
@@ -467,7 +468,7 @@ void BTreeIndex::scanNext(RecordId& outRid)
 //
 void BTreeIndex::endScan() 
 {
-
+  
 }
 
 }
