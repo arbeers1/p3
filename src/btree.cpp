@@ -148,6 +148,7 @@ void BTreeIndex::insertEntry(const void *key, const RecordId rid)
     root->pageNoArray[INTARRAYNONLEAFSIZE] = INT_MAX; //Fill in remaining slot
     root->level = 1;
     root->keyArray[0] = *((int*)key);
+    root->pageNoArray[0] = leftPageNum;
     root->pageNoArray[1] = pageNum; //insert leaf page to right of key
     rootPageNum = rootNum;
     bufMgr->unPinPage(file, rootNum, true);
@@ -458,9 +459,9 @@ bool BTreeIndex::verifyKey(int key){
   }else if(lowOp == GT && highOp == LTE){
     return (key > lowValInt && key <= highValInt);
   }else if (lowOp == GTE && highOp == LT){
-    return (key >= lowValInt && highOp < highValInt);
+    return (key >= lowValInt && key < highValInt);
   }else{
-    return (key >= lowValInt && highOp <= highValInt);
+    return (key >= lowValInt && key <= highValInt);
   }
 }
 
@@ -477,9 +478,10 @@ void BTreeIndex::scanNext(RecordId& outRid)
   if(nextEntry == -1){ //Case where no more right sibling page exists
     throw IndexScanCompletedException();
   }
-
+  
   //verify current key is within paramaters
   LeafNodeInt *leaf = (struct LeafNodeInt*)currentPageData;
+  //std::cout<<leaf->keyArray[nextEntry]<<":"<<verifyKey(leaf->keyArray[nextEntry])<<"\n"<<std::flush;
   if(verifyKey(leaf->keyArray[nextEntry])){
     outRid = leaf->ridArray[nextEntry];		
   }else{
