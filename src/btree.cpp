@@ -468,7 +468,15 @@ void BTreeIndex::scanNext(RecordId& outRid)
 //
 void BTreeIndex::endScan() 
 {
-  
+  //No scan running
+  if(!scanExecuting){
+    throw ScanNotInitializedException();
+  } 
+
+  //Perform cleanup
+  bufMgr->unPinPage(file, currentPageNum, false);
+  currentPageNum = 0;
+  scanExecuting = false;
 }
 
 }
