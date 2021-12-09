@@ -136,10 +136,10 @@ int main(int argc, char **argv)
 	File::remove(relationName);
 
 	test1();
-	test2();
-	test3();
-	errorTests();
-        customTest1();
+	//test2();
+	//test3();
+	//errorTests();
+        //customTest1();
 	delete bufMgr;
 
   return 1;

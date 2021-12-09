@@ -280,7 +280,11 @@ void BTreeIndex::splitLeaf(LeafNodeInt *child, PageId childNo, const void *key, 
    PageId sibPageNo; Page *sibPage;
    bufMgr->allocPage(file, sibPageNo, sibPage);
    LeafNodeInt *sibLeaf = (struct LeafNodeInt*)sibPage;
-
+   
+   //set to max
+   for(int i = 0; i < INTARRAYLEAFSIZE; i++){
+     sibLeaf->keyArray[i] = INT_MAX;
+   }
    //Copy over data
    for(int i = mid, j = 0; i < INTARRAYLEAFSIZE; i++,j++){
      sibLeaf->keyArray[j] = child->keyArray[i];
@@ -310,6 +314,10 @@ void BTreeIndex::splitNonLeaf(NonLeafNodeInt *child, const void *key, PageId pag
   bufMgr->allocPage(file, sibPageNo, sibPage);
   NonLeafNodeInt *sibNode = (struct NonLeafNodeInt*)sibPage;
 
+  //set to max
+   for(int i = 0; i < INTARRAYNONLEAFSIZE; i++){
+     sibNode->keyArray[i] = INT_MAX;
+   }
   //Copy data to new node
   for(int i = mid, j = 0; i < INTARRAYNONLEAFSIZE; i++, j++){
     sibNode->keyArray[j] = child->keyArray[i];
@@ -335,6 +343,10 @@ void BTreeIndex::splitNonLeaf(NonLeafNodeInt *child, const void *key, PageId pag
     bufMgr->allocPage(file, rootNo, rootP);
     NonLeafNodeInt *root = (struct NonLeafNodeInt*)rootP;
 
+    //set to max
+    for(int i = 0; i < INTARRAYNONLEAFSIZE; i++){
+       root->keyArray[i] = INT_MAX;
+    }
     //add the prop key and pages
     root->keyArray[0] = propogateKey;
     root->pageNoArray[0] = rootPageNum;
@@ -377,7 +389,6 @@ void BTreeIndex::startScan(const void* lowValParm,
 				   const void* highValParm,
 				   const Operator highOpParm)
 {
-
   //End any scan if one is occuring
   if(scanExecuting) endScan();
 
@@ -391,15 +402,15 @@ void BTreeIndex::startScan(const void* lowValParm,
   if(lowValInt > highValInt){
     throw BadScanrangeException();
   }
-
-  if(lowOp != GT || lowOp != GTE){
+ 
+  if(lowOp == LT || lowOp == LTE){
     throw BadOpcodesException();
   }
-
-  if(highOp != LT || highOp != LTE){
+  
+  if(highOp == GT || highOp == GTE){
     throw BadOpcodesException();
   }
-
+ 
   if(currentPageNum == 0) currentPageNum = rootPageNum;
 
   //Scan current node
@@ -411,7 +422,7 @@ void BTreeIndex::startScan(const void* lowValParm,
   //Find the next page to recurse onto
   int childPageNo = 0;
   for(int i = 0; i < INTARRAYNONLEAFSIZE; i++){
-    if(node->keyArray[i] < lowValInt){
+    if(lowValInt < node->keyArray[i]){
       childPageNo = node->pageNoArray[i];
       break;
     }
@@ -437,7 +448,7 @@ void BTreeIndex::startScan(const void* lowValParm,
     currentPageNum = 0;
     throw NoSuchKeyFoundException();
   }else{
-    startScan(lowValParm, lowOp, highValParm, highOp);
+    startScan(lowValParm, lowOpParm, highValParm, highOpParm);
   }
 }
 
