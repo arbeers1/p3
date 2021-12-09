@@ -428,7 +428,7 @@ void BTreeIndex::startScan(const void* lowValParm,
       if(verifyKey(leaf->keyArray[i])){
         scanExecuting = true;
 	nextEntry = i;
-	break;
+	return;
       }
     }
     
@@ -459,7 +459,37 @@ bool BTreeIndex::verifyKey(int key){
 
 void BTreeIndex::scanNext(RecordId& outRid) 
 {
+  if(!scanExecuting){
+    throw ScanNotInitializedException();
+  }
 
+  if(nextEntry == -1){ //Case where no more right sibling page exists
+    throw IndexScanCompletedException();
+  }
+
+  //verify current key is within paramaters
+  LeafNodeInt *leaf = (struct LeafNodeInt*)currentPageData;
+  if(verifyKey(leaf->keyArray[nextEntry])){
+    outRid = leaf->ridArray[nextEntry];		
+  }else{
+    throw IndexScanCompletedException();
+  }
+ 
+  //Increment next entry
+  if(nextEntry < INTARRAYLEAFSIZE - 1){
+    nextEntry++;
+  }else{
+    //Case where end of page has been reached.
+    //Current page is unpinned and next page is read in, if it exists.
+    bufMgr->unPinPage(file, currentPageNum, false);
+    if(leaf->rightSibPageNo != 0){
+      currentPageNum = leaf->rightSibPageNo;
+      bufMgr->readPage(file, currentPageNum, currentPageData);
+      nextEntry = 0;
+    }else{
+      nextEntry = -1; //mark nextentry invalid for next iteration
+    }
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -475,7 +505,7 @@ void BTreeIndex::endScan()
 
   //Perform cleanup
   bufMgr->unPinPage(file, currentPageNum, false);
-  currentPageNum = 0;
+  currentPageNum = 0;  
   scanExecuting = false;
 }
 
