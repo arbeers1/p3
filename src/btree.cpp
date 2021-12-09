@@ -247,6 +247,7 @@ bool BTreeIndex::insertToLeaf(const PageId pageNum, const void *key, const Recor
         for(int i = 0; i < INTARRAYLEAFSIZE; i++){
           if(*((int*)key) < leaf->keyArray[i]){
             insertIndex = i;
+	    break;
           }
         }
 
@@ -337,6 +338,7 @@ void BTreeIndex::splitNonLeaf(NonLeafNodeInt *child, const void *key, PageId pag
     root->keyArray[0] = propogateKey;
     root->pageNoArray[0] = rootPageNum;
     root->pageNoArray[1] = sibPageNo;
+    root->level = 0;
     rootPageNum = rootNo;
     bufMgr->unPinPage(file, rootNo, true);
   }
@@ -375,6 +377,55 @@ void BTreeIndex::startScan(const void* lowValParm,
 				   const Operator highOpParm)
 {
 
+  //End any scan if one is occuring
+  if(scanExecuting) endScan();
+
+  lowValInt = *((int*)lowValParm);
+  highValInt = *((int*)highValParm);
+  
+  lowOp = lowOpParm;
+  highOp = highOpParm;
+
+  //Verify paramaters
+  if(lowValInt > highValInt){
+    throw BadScanrangeException();
+  }
+
+  if(lowOp != GT || lowOp != GTE){
+    throw BadOpcodesException();
+  }
+
+  if(highOp != LT || highOp != LTE){
+    throw BadOpcodesException();
+  }
+
+  if(currentPageNum == 0) currentPageNum = rootPageNum;
+
+  //Scan current node
+  Page *page;
+  bufMgr->readPage(file, currentPageNum, page);
+  bufMgr->unPinPage(file, currentPageNum, false);
+  NonLeafNodeInt *node = (struct NonLeafNodeInt*)page;
+
+  //Find the next page to recurse onto
+  int childPageNo = 0;
+  for(int i = 0; i < INTARRAYNONLEAFSIZE; i++){
+    if(node->keyArray[i] < lowValInt){
+      childPageNo = node->pageNoArray[i];
+      break;
+    }
+  }
+  if(childPageNo == 0) childPageNo = node->pageNoArray[INTARRAYNONLEAFSIZE];
+
+  //Return if leaf otherwise continue
+  currentPageNum = childPageNo;
+  if(node->level == 1){
+    bufMgr->readPage(file, currentPageNum, currentPageData);
+    scanExecuting = true;
+    return;
+  }else{
+    startScan(lowValParm, lowOp, highValParm, highOp);
+  }
 }
 
 // -----------------------------------------------------------------------------
