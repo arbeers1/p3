@@ -132,7 +132,7 @@ void BTreeIndex::insertEntry(const void *key, const RecordId rid)
     leafRight->keyArray[0] = *((int*)key);
     leafRight->ridArray[0] = rid;
     leafRight->rightSibPageNo = 0;
-    leafLeft->rightSibPageNo = leftPageNum;
+    leafLeft->rightSibPageNo = pageNum;
     bufMgr->unPinPage(file, pageNum, true);
     bufMgr->unPinPage(file, leftPageNum, true);
     
@@ -435,13 +435,32 @@ void BTreeIndex::startScan(const void* lowValParm,
   if(node->level == 1){
     bufMgr->readPage(file, currentPageNum, currentPageData);
     LeafNodeInt *leaf = (struct LeafNodeInt*)currentPageData;
+
+    std::cout<<"THIS PAGE="<<currentPageNum<<" NEXT PAGE="<<leaf->rightSibPageNo<<"\n"<<std::flush;
     //Verify leaf contains key
     for(int i = 0; i < INTARRAYLEAFSIZE; i++){
+
+      //if current leaf is empty, check the next leaf to see if it has valid values
+      if(leaf->keyArray[i] == INT_MAX){
+        if(leaf->rightSibPageNo == 0){
+	  break;
+        }else{
+	  i = 0;
+          bufMgr->unPinPage(file, currentPageNum, false);
+	  currentPageNum = leaf->rightSibPageNo;
+	  bufMgr->readPage(file, currentPageNum, currentPageData);
+	  leaf = (struct LeafNodeInt*)currentPageData;
+        }
+      }
+      //std::cout<<leaf->keyArray[i]<<":"<<verifyKey(leaf->keyArray[i])<<"\n"<<std::flush;
       if(verifyKey(leaf->keyArray[i])){
         scanExecuting = true;
 	nextEntry = i;
 	return;
       }
+
+      //If value is greater than current high op and not empty val(int max) scanning can terminate
+      if(leaf->keyArray[i] > highValInt && leaf->keyArray[i] != INT_MAX) break;
     }
     
     //Btree does not contain any valid keys
@@ -481,7 +500,6 @@ void BTreeIndex::scanNext(RecordId& outRid)
   
   //verify current key is within paramaters
   LeafNodeInt *leaf = (struct LeafNodeInt*)currentPageData;
-  //std::cout<<leaf->keyArray[nextEntry]<<":"<<verifyKey(leaf->keyArray[nextEntry])<<"\n"<<std::flush;
   if(verifyKey(leaf->keyArray[nextEntry])){
     outRid = leaf->ridArray[nextEntry];		
   }else{
