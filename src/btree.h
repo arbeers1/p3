@@ -350,12 +350,41 @@ class BTreeIndex {
 	 **/
 	bool insertToLeaf(const PageId currentPageNum, const void *key, const RecordId rid);
 
+	        /**
+         *Helper method to split a leaf into two leaves when it is full.
+         *@param child - the leaf node to split
+	 *param childNo - the page number of the child leaf
+         *@param key - Key to insert after the leaf has split
+         *@param rid - rid to insert after the leaf has split
+         *@param propKey - (value returned via poitner)the middle key of the leaf before splitting which needs to be inserted in parent node
+	 *@param propPageNo - (value returned via pointer)the newly created leafs page number which needs to be inserted in parent node
+         **/
 	void splitLeaf(LeafNodeInt *child, PageId childNo, const void *key, const RecordId rid, int &propKey, PageId &propPageNo);
+
+                /**
+         *Helper method to split a nonleaf into two nonleaves when it is full.
+         *@param child - the node to split
+         *@param key - Key to insert after the node has split
+         *@param pageNo - pageNo of the node split at a lower level, which needs to be inserted
+         *@param propKey - (value returned via pointer)the middle key of the node before splitting which needs to be inserted in parent node
+         *@param propPageNo - (value returned via pointer)the newly created nodes page number which needs to be inserted in parent node
+         **/
 
         void splitNonLeaf(NonLeafNodeInt *child, const void *key, PageId pageNo, int &propKey, PageId &propPageNo, bool root);
   
+	/**
+	 *Helper method to insert a key, pageNo pair into a nonleaf node
+	 *@param node - the node to insert to
+	 *@param key - the key that needs to be inserted
+	 *@param pageNo - the page number that needs to be inserted
+	 **/
 	void insertNonLeaf(NonLeafNodeInt *node, const void *key, PageId pageNo);
 
+	/**
+	 *Helper method which verifies a key is valid given the current scan paramaters
+	 *@param key - the key to check
+	 *@return - true if valid, false otherwise
+	 * */
 	bool verifyKey(int key);
 
 	/**
