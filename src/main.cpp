@@ -19,6 +19,7 @@
 #include "exceptions/bad_opcodes_exception.h"
 #include "exceptions/scan_not_initialized_exception.h"
 #include "exceptions/end_of_file_exception.h"
+#include "exceptions/buffer_exceeded_exception.h"
 
 #define checkPassFail(a, b) 																				\
 {																																		\
@@ -39,9 +40,9 @@ using namespace badgerdb;
 // -----------------------------------------------------------------------------
 // Globals
 // -----------------------------------------------------------------------------
-const std::string relationName = "relA";
+ std::string relationName = "relA";
 //If the relation size is changed then the second parameter 2 chechPassFail may need to be changed to number of record that are expected to be found during the scan, else tests will erroneously be reported to have failed.
-const int	relationSize = 5000;
+ int	relationSize = 5000;
 std::string intIndexName, doubleIndexName, stringIndexName;
 
 // This is the structure for tuples in the base relation
@@ -66,6 +67,7 @@ BufMgr * bufMgr = new BufMgr(100);
 void createRelationForward();
 void createRelationBackward();
 void createRelationRandom();
+void createRelationNegative();
 void intTests();
 int intScan(BTreeIndex *index, int lowVal, Operator lowOp, int highVal, Operator highOp);
 void indexTests();
@@ -74,7 +76,10 @@ void test2();
 void test3();
 void errorTests();
 void deleteRelation();
-void customTest1();
+void smallBufferTest();
+void bigRelation();
+void equalityTest();
+void testNegativeKey();
 
 int main(int argc, char **argv)
 {
@@ -139,7 +144,11 @@ int main(int argc, char **argv)
 	test2();
 	test3();
 	errorTests();
-        //customTest1();
+        smallBufferTest();
+	bigRelation();
+	equalityTest();
+	testNegativeKey();
+	
 	delete bufMgr;
 
   return 1;
@@ -178,17 +187,62 @@ void test3()
 	deleteRelation();
 }
 
-void customTest1()
+void smallBufferTest()
 {
-  BTreeIndex index(relationName, intIndexName, bufMgr, offsetof(tuple,i), INTEGER);
-  RecordId rid1; RecordId rid2; RecordId rid3;
-  int key1 = 5;
-  int key2 = 1;
-  int key3 = 10;
-  index.insertEntry(&key1, rid1);
-  index.insertEntry(&key2, rid2);
-  index.insertEntry(&key3, rid3);
-  std::cout<<"Test finished without error"<<std::flush;
+  //Tests a small sized btree with random relation on a small buffer to detect excessive page pins
+  bufMgr = new BufMgr(10);
+  std::cout << "--------------------" << std::endl;
+  std::cout << "createRelationRandom with small buffer" << std::endl;
+  createRelationRandom();
+  try{
+    indexTests();
+  }catch(BufferExceededException&){
+	  std::cout<<"Ran out of buffer frames. Test failed";
+  }
+  deleteRelation();
+  bufMgr = new BufMgr(100);
+  std::cout<<"Small buffer test passed.\n"<<std::flush;
+}
+
+void bigRelation(){
+  //Make more data to test node split propogation
+  relationSize = 500000;
+  relationName = "relationBig";
+  std::cout << "--------------------" << std::endl;
+  std::cout << "createRelationRandom with lots of values" << std::endl;
+  createRelationRandom();
+  indexTests();
+  deleteRelation();
+  relationSize = 5000;
+  relationName = "relA";
+  std::cout<<"big relation test passed\n"<<std::flush;
+
+}
+
+void equalityTest(){
+  //test to find single values instead of range
+  relationName = "eqRelation";
+  std::cout << "--------------------" << std::endl;
+  std::cout << "createRelationRandom with equality search" << std::endl;
+  createRelationRandom();
+  indexTests();
+  deleteRelation();
+  relationName = "relA";
+  std::cout<<"equality test passed\n"<<std::flush;
+
+}
+
+void testNegativeKey(){
+	//test insertion of keys that are negative
+  relationName = "negRelation";
+  std::cout << "--------------------" << std::endl;
+  std::cout << "createRelationForwards with negative keys" << std::endl;
+  createRelationNegative();
+  indexTests();
+  deleteRelation();
+  relationName = "relA";
+  std::cout<<"negative key test passed\n"<<std::flush;
+
 }
 // -----------------------------------------------------------------------------
 // createRelationForward
@@ -352,6 +406,51 @@ void createRelationRandom()
 	file1->writePage(new_page_number, new_page);
 }
 
+void createRelationNegative(){
+        std::vector<RecordId> ridVec;
+  // destroy any old copies of relation file
+        try
+        {
+                File::remove(relationName);
+        }
+        catch(const FileNotFoundException &e)
+        {
+        }
+
+  file1 = new PageFile(relationName, true);
+
+  // initialize all of record1.s to keep purify happy
+  memset(record1.s, ' ', sizeof(record1.s));
+        PageId new_page_number;
+  Page new_page = file1->allocatePage(new_page_number);
+
+  // Insert a bunch of tuples into the relation.
+  for(int i = 0-relationSize; i < relationSize; i++ )
+        {
+    sprintf(record1.s, "%05d string record", i);
+    record1.i = i;
+    record1.d = (double)i;
+    std::string new_data(reinterpret_cast<char*>(&record1), sizeof(record1));
+
+                while(1)
+                {
+                        try
+                        {
+                new_page.insertRecord(new_data);
+                                break;
+                        }
+                        catch(const InsufficientSpaceException &e)
+                        {
+                                file1->writePage(new_page_number, new_page);
+                        new_page = file1->allocatePage(new_page_number);
+                        }
+                }
+  }
+
+        file1->writePage(new_page_number, new_page);
+
+}
+
 // -----------------------------------------------------------------------------
 // indexTests
 // -----------------------------------------------------------------------------
@@ -378,13 +477,29 @@ void intTests()
   BTreeIndex index(relationName, intIndexName, bufMgr, offsetof(tuple,i), INTEGER);
 
 	// run some tests
-	checkPassFail(intScan(&index,25,GT,40,LT), 14)
-	checkPassFail(intScan(&index,20,GTE,35,LTE), 16)
-	checkPassFail(intScan(&index,-3,GT,3,LT), 3)
-	checkPassFail(intScan(&index,996,GT,1001,LT), 4)
-	checkPassFail(intScan(&index,0,GT,1,LT), 0)
-	checkPassFail(intScan(&index,300,GT,400,LT), 99)
-	checkPassFail(intScan(&index,3000,GTE,4000,LT), 1000)
+	if(relationName == "relA"){
+	  checkPassFail(intScan(&index,25,GT,40,LT), 14)
+	  checkPassFail(intScan(&index,20,GTE,35,LTE), 16)
+	  checkPassFail(intScan(&index,-3,GT,3,LT), 3)
+	  checkPassFail(intScan(&index,996,GT,1001,LT), 4)
+	  checkPassFail(intScan(&index,0,GT,1,LT), 0)
+	  checkPassFail(intScan(&index,300,GT,400,LT), 99)
+	  checkPassFail(intScan(&index,3000,GTE,4000,LT), 1000)
+	}else if(relationName == "relationBig"){
+          checkPassFail(intScan(&index,3000,GTE,4000,LT), 1000)
+          checkPassFail(intScan(&index, 300000, GTE, 420000, LT), 120000)
+	}else if(relationName == "eqRelation"){
+          checkPassFail(intScan(&index,4999,GTE,5000,LT), 1)
+          checkPassFail(intScan(&index,0,GTE,1,LT), 1)
+	  checkPassFail(intScan(&index,2500,GTE,2501,LT), 1)
+	  checkPassFail(intScan(&index,-1,GTE,0,LT), 0)
+	}else if(relationName == "negRelation"){
+          checkPassFail(intScan(&index,-3,GT,3,LT), 5)
+          checkPassFail(intScan(&index,996,GT,1001,LT), 4)
+          checkPassFail(intScan(&index,300,GT,400,LT), 99)
+          checkPassFail(intScan(&index,-400,GT,-300,LT),99)
+	  checkPassFail(intScan(&index,-1001,GT,-996,LT),4)
+	}
 }
 
 int intScan(BTreeIndex * index, int lowVal, Operator lowOp, int highVal, Operator highOp)

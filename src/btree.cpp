@@ -201,6 +201,7 @@ bool BTreeIndex::insertHelper(PageId currentNum, const void *key, const RecordId
 	bufMgr->unPinPage(file, currentNum, true);
 	return true;
       }
+      bufMgr->unPinPage(file,currentNum, false);
       return false;
     }
   }else{//recurse further down on first pass, split if needed on seconds pass upwards
@@ -227,6 +228,7 @@ bool BTreeIndex::insertHelper(PageId currentNum, const void *key, const RecordId
         bufMgr->unPinPage(file, currentNum, true);
         return true;
       }
+      bufMgr->unPinPage(file, currentNum, false);
       return false;
     }
     
@@ -389,7 +391,6 @@ void BTreeIndex::startScan(const void* lowValParm,
 				   const void* highValParm,
 				   const Operator highOpParm)
 {
-  std::cout<<"startScan:"<<scanExecuting<<"\n"<<std::flush;
   //End any scan if one is occuring
   if(scanExecuting) endScan();
 
@@ -542,7 +543,7 @@ void BTreeIndex::scanNext(RecordId& outRid)
 //
 void BTreeIndex::endScan() 
 {
-   std::cout<<"endScan:"<<scanExecuting<<"\n"<<std::flush;
+   
   //No scan running
   if(!scanExecuting){
     throw ScanNotInitializedException();
