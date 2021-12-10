@@ -510,15 +510,29 @@ void BTreeIndex::scanNext(RecordId& outRid)
   if(nextEntry < INTARRAYLEAFSIZE - 1){
     nextEntry++;
   }else{
-    //Case where end of page has been reached.
+    //Case where end of full page has been reached.
     //Current page is unpinned and next page is read in, if it exists.
-    bufMgr->unPinPage(file, currentPageNum, false);
     if(leaf->rightSibPageNo != 0){
+      bufMgr->unPinPage(file, currentPageNum, false);
       currentPageNum = leaf->rightSibPageNo;
       bufMgr->readPage(file, currentPageNum, currentPageData);
       nextEntry = 0;
     }else{
       nextEntry = -1; //mark nextentry invalid for next iteration
+    }
+  }
+
+  //Increments page in case end of a partially filled page is encountered
+  while(leaf->keyArray[nextEntry] == INT_MAX){
+    if(leaf->rightSibPageNo != 0){
+      bufMgr->unPinPage(file, currentPageNum, false);
+      currentPageNum = leaf->rightSibPageNo;
+      bufMgr->readPage(file, currentPageNum, currentPageData);
+      nextEntry = 0;
+      leaf = (struct LeafNodeInt*)currentPageData;
+    }else{
+      nextEntry = -1;
+      break;
     }
   }
 }
