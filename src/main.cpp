@@ -136,9 +136,9 @@ int main(int argc, char **argv)
 	File::remove(relationName);
 
 	test1();
-	//test2();
-	//test3();
-	//errorTests();
+	test2();
+	test3();
+	errorTests();
         //customTest1();
 	delete bufMgr;
 

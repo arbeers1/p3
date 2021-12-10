@@ -46,6 +46,7 @@ BTreeIndex::BTreeIndex(const std::string & relationName,
   rootPageNum = 0;
   currentPageNum = 0;
   nextEntry = -1;
+  scanExecuting = false;
   
   //Opens the file if it exists, otherwise a new index file is created
   //scanned via FileScan, and record is inserted.
@@ -97,9 +98,7 @@ BTreeIndex::~BTreeIndex()
   //Stops any scan if one is occuring
   if(scanExecuting){
     endScan();
-  }
-
-  //May need to check and unpin pages here 
+  } 
   
   //Flushes and deconstructs file
   bufMgr->flushFile(file);
@@ -196,7 +195,7 @@ bool BTreeIndex::insertHelper(PageId currentNum, const void *key, const RecordId
       bufMgr->unPinPage(file, currentNum, true);
       return true;
     }else{//parent node is full, split node, return false so that previous call can split it
-      //TODO: check if parent node is root and split
+          //if root though split here
       if(currentNum == rootPageNum){
         splitNonLeaf(node, &propKey, propPageNo, propKey, propPageNo, true);
 	bufMgr->unPinPage(file, currentNum, true);
@@ -204,7 +203,7 @@ bool BTreeIndex::insertHelper(PageId currentNum, const void *key, const RecordId
       }
       return false;
     }
-  }else{//recurse further down on first pass, split if needed on seconds pass
+  }else{//recurse further down on first pass, split if needed on seconds pass upwards
     if(insertHelper(childNum, key, rid, propKey, propPageNo)){
       return true;
     }
@@ -390,6 +389,7 @@ void BTreeIndex::startScan(const void* lowValParm,
 				   const void* highValParm,
 				   const Operator highOpParm)
 {
+  std::cout<<"startScan:"<<scanExecuting<<"\n"<<std::flush;
   //End any scan if one is occuring
   if(scanExecuting) endScan();
 
@@ -436,7 +436,6 @@ void BTreeIndex::startScan(const void* lowValParm,
     bufMgr->readPage(file, currentPageNum, currentPageData);
     LeafNodeInt *leaf = (struct LeafNodeInt*)currentPageData;
 
-    std::cout<<"THIS PAGE="<<currentPageNum<<" NEXT PAGE="<<leaf->rightSibPageNo<<"\n"<<std::flush;
     //Verify leaf contains key
     for(int i = 0; i < INTARRAYLEAFSIZE; i++){
 
@@ -452,7 +451,7 @@ void BTreeIndex::startScan(const void* lowValParm,
 	  leaf = (struct LeafNodeInt*)currentPageData;
         }
       }
-      //std::cout<<leaf->keyArray[i]<<":"<<verifyKey(leaf->keyArray[i])<<"\n"<<std::flush;
+     
       if(verifyKey(leaf->keyArray[i])){
         scanExecuting = true;
 	nextEntry = i;
@@ -543,6 +542,7 @@ void BTreeIndex::scanNext(RecordId& outRid)
 //
 void BTreeIndex::endScan() 
 {
+   std::cout<<"endScan:"<<scanExecuting<<"\n"<<std::flush;
   //No scan running
   if(!scanExecuting){
     throw ScanNotInitializedException();
