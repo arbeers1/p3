@@ -1,0 +1,35 @@
+B+ Tree Design Report
+
+Alexander Beers
+
+12/12/2021
+
+1. Page Pinning - When traversing the tree for inserts and scanning it is necessary to traverse many nodes 
+   which means that many pages need to be read in. In order to avoid clogging the buffer pool with excessive 
+   page pins, all pages are immediately unpinned unless it is certain that this page will be modified in the 
+   near future, such as the case when initializing a new node or inserting a key into a leaf node.
+
+2. Seperation of Concerns - In the case of inserting there are many unique cases that can be lengthy to code.
+   As such extra helper methods were created to address these to avoid having one really long insert method.
+   Two major events in the insertion process is inserting the key pair and the occasional node split. I 
+   further broke these two cases down into the case of leaf vs nonleaf split/insertion since these two have 
+   different variables and decisions to consider.
+
+3. End Mark - The max integer was used to indicate an empty key. This is helpful for ensuring that the key is 
+   inserted into the proper slot and knowing when the end of a node has been reached in a scan that may traverse
+   multiple pages. While helpful, this can be a flaw assuming a legitimate key is inserted of value max int, but
+   being an outlier key makes this case more rare.
+
+4. Efficiency - To avoid traversing the tree multiple times on scans the scan method finds the leftmost page and
+   then moves right at the leaf level until either an out of bounds value is reached or there are no more right 
+   pages. To avoid traversing the tree multiple times on insertion, first insertion moves down the tree 
+   recursively. This recursive method returns a bool so that when the recursive stack goes back up the tree
+   a false is returned if the previous call(the one below the current call on the stack) needs to split its node.
+
+5. Testing - 4 additional test cases were made. The first test case was a small buffer pool test. This shrinks the 
+   pool from 100 to 10 frames. This test was made to try and catch if any pages were not being unpinned when they 
+   should be. The next test was a larger relation size. By inserting lots of values the leaf node will split so 
+   many times causing the nonleaf node to also split. This allows testing of the nonleaf split method. The next 
+   test is for equality search since a b+tree should be capable of handling both scan and equality searches.
+   The final test was just to ensure negative keys work properly since the provided test cases only work on 
+   positive keys.
