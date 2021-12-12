@@ -3,6 +3,10 @@
  *
  * @section LICENSE
  * Copyright (c) 2012 Database Group, Computer Sciences Department, University of Wisconsin-Madison.
+ *
+ * File: btree.cpp
+ * Contributor: Alexander Beers
+ * Description: Stores a b tree with an integer key, RecordId pair
  */
 
 #include "btree.h"
@@ -72,19 +76,6 @@ BTreeIndex::BTreeIndex(const std::string & relationName,
       }
     }
   }
-  
-  //Initialize indexMetaPage
-  PageId pageNo; Page *page;
-  try{
-    bufMgr->allocPage(file, pageNo, page);
-    headerPageNum = pageNo;
-    std::ostringstream metaStr;
-    metaStr << relationName << ',' << attrByteOffset << ',' << attrType << ',' << 0;
-    std::string meta = metaStr.str();
-    page->insertRecord(meta); 
-    bufMgr->unPinPage(file, pageNo, true);
-  }catch(PagePinnedException&){
-  }catch(BadBufferException&){}
   outIndexName = indexName;
 }
 
@@ -151,7 +142,7 @@ void BTreeIndex::insertEntry(const void *key, const RecordId rid)
     root->pageNoArray[1] = pageNum; //insert leaf page to right of key
     rootPageNum = rootNum;
     bufMgr->unPinPage(file, rootNum, true);
-
+    
   }else{ //Case where a root exists, nodes are recursively checked
     int propKey; PageId propPageNo;
     insertHelper(rootPageNum, key, rid, propKey, propPageNo);
